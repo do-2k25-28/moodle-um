@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 import typer
@@ -471,8 +472,18 @@ def keepalive(
 
 
 @app.command("mcp")
-def mcp_command() -> None:
-    """Run the MCP server (stdio)."""
+def mcp_command(
+    http: bool = typer.Option(False, "--http", help="Serve Streamable HTTP instead of stdio"),
+    host: str = typer.Option("127.0.0.1", "--host", help="HTTP bind host"),
+    port: int = typer.Option(8765, "--port", help="HTTP bind port"),
+    path: str = typer.Option("/mcp", "--path", help="Streamable HTTP endpoint path"),
+) -> None:
+    """Run the MCP server (stdio by default, or Streamable HTTP)."""
+    if http:
+        os.environ["MOODLE_UM_MCP_TRANSPORT"] = "http"
+        os.environ["MOODLE_UM_MCP_HOST"] = host
+        os.environ["MOODLE_UM_MCP_PORT"] = str(port)
+        os.environ["MOODLE_UM_MCP_PATH"] = path
     from .mcp_server import main as mcp_main
 
     mcp_main()

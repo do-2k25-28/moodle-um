@@ -23,6 +23,18 @@ Moodle until the session expires.
 - The optional keepalive timer only sends authenticated requests to
   `moodle.umontpellier.fr`; it does not transmit data anywhere else.
 
+## Remote MCP mode
+
+`moodle-um mcp --http ...` exposes the MCP server over Streamable HTTP. When
+published through Tailscale Funnel or another HTTPS reverse proxy, **the URL
+path is the only access control**. Treat the full URL as a bearer credential:
+
+- use a random 32-byte path and HTTPS;
+- do not paste the URL into screenshots, issues, or logs;
+- rotate the path (edit `MOODLE_UM_MCP_PATH`, restart the service) if it leaks;
+- the server binds to `127.0.0.1`; do not expose the raw port directly;
+- no OAuth is implemented yet, so there is no per-user authorization.
+
 ## Reporting a vulnerability
 
 Please open a private security advisory on GitHub rather than a public issue

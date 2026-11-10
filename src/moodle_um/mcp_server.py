@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from . import auth, browser, quiz, services
 from .client import connect
+
+MCP_HOST = os.environ.get("MOODLE_UM_MCP_HOST", "127.0.0.1")
+MCP_PORT = int(os.environ.get("MOODLE_UM_MCP_PORT", "8765"))
+MCP_PATH = os.environ.get("MOODLE_UM_MCP_PATH", "/mcp")
+if not MCP_PATH.startswith("/"):
+    MCP_PATH = "/" + MCP_PATH
+MCP_STATELESS = os.environ.get("MOODLE_UM_MCP_STATELESS", "1") != "0"
+MCP_TRANSPORT = os.environ.get("MOODLE_UM_MCP_TRANSPORT", "stdio").lower()
 
 mcp = FastMCP(
     "moodle-um",
@@ -26,6 +36,16 @@ mcp = FastMCP(
         "`moodle_quiz_solve` to save proposed answers, and "
         "`moodle_quiz_submit` only after explicit user confirmation. Never "
         "submit a graded exam without the user's approval."
+    ),
+    host=MCP_HOST,
+    port=MCP_PORT,
+    streamable_http_path=MCP_PATH,
+    stateless_http=MCP_STATELESS,
+    json_response=True,
+    # The server is reachable through a reverse proxy / Tailscale Funnel;
+    # the secret URL path is the access control in that mode.
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False
     ),
 )
 
@@ -373,7 +393,10 @@ def main() -> None:
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     for noisy in ("httpx", "httpcore", "mcp", "playwright", "anyio"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
-    mcp.run()
+    if MCP_TRANSPORT in ("http", "streamable-http", "streamable_http"):
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":

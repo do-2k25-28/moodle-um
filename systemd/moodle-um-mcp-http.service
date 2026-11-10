@@ -1,0 +1,21 @@
+[Unit]
+Description=Moodle UM remote MCP server (Streamable HTTP)
+Documentation=https://github.com/do-2k25-28/moodle-um
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/moodle-um
+Environment=MOODLE_UM_HOME=%h/.config/moodle-um
+Environment=MOODLE_UM_MCP_HOST=127.0.0.1
+Environment=MOODLE_UM_MCP_PORT=8765
+Environment=MOODLE_UM_MCP_TRANSPORT=http
+EnvironmentFile=%h/.config/moodle-um/mcp.env
+ExecStart=%h/moodle-um/.venv/bin/moodle-um mcp --http --host 127.0.0.1 --port 8765 --path ${MOODLE_UM_MCP_PATH}
+Restart=always
+RestartSec=5
+UMask=0077
+
+[Install]
+WantedBy=default.target

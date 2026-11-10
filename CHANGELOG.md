@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — 2026-11-10
+
+- **Remote MCP mode:** Streamable HTTP transport (`moodle-um mcp --http`),
+  suitable for claude.ai custom connectors behind HTTPS.
+- `systemd/moodle-um-mcp-http.service` unit and Tailscale Funnel instructions.
+- `MOODLE_UM_MCP_TRANSPORT`, `MOODLE_UM_MCP_HOST`, `MOODLE_UM_MCP_PORT`,
+  `MOODLE_UM_MCP_PATH` settings.
+
 ## 0.3.0 — 2026-11-10
 
 - **Quiz solve/submit:** `moodle_quiz_solve` maps answers by question number,

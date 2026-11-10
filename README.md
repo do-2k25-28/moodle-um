@@ -170,6 +170,44 @@ run it through `uv`:
 }
 ```
 
+### Claude.ai / cloud clients (remote HTTP)
+
+claude.ai connectors need a **public HTTPS MCP URL**; they cannot spawn a local
+stdio process. Run the same server in Streamable HTTP mode on a machine that can
+reach Moodle, then expose it through a tunnel or reverse proxy:
+
+```bash
+# 32-byte URL-safe secret; do not commit or share it
+TOKEN=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+uv run moodle-um mcp --http --host 127.0.0.1 --port 8765 --path "/$TOKEN/mcp"
+```
+
+With Tailscale:
+
+```bash
+tailscale funnel --bg 8765
+# public URL:
+# https://<machine>.<tailnet>.ts.net/$TOKEN/mcp
+```
+
+Then in Claude: **Settings → Connectors → Add custom connector**, name it
+`Moodle UM`, paste the URL, and continue. The server returns no OAuth challenge,
+so Claude connects without a sign-in prompt.
+
+A systemd user service is provided in
+[`systemd/moodle-um-mcp-http.service`](systemd/moodle-um-mcp-http.service); put
+the secret path in `~/.config/moodle-um/mcp.env`:
+
+```ini
+MOODLE_UM_MCP_PATH=/<token>/mcp
+```
+
+**Security:** a no-auth connector URL is effectively a bearer credential.
+Anyone who learns it can use your Moodle session through the MCP. Keep it
+secret, use HTTPS, and rotate it by changing the path and restarting the
+service. OAuth is the stronger long-term option but is not implemented yet; see
+[SECURITY.md](SECURITY.md).
+
 ### Claude Desktop
 
 Merge the JSON above into
@@ -350,6 +388,9 @@ tool out; it does not end a separately open browser session.
 | `MOODLE_UM_BROWSER` | auto-detected | Chromium/Chrome executable |
 | `MOODLE_UM_LOGIN_TIMEOUT` | `300` | Seconds to wait for ENT login |
 | `MOODLE_UM_SITE` | `https://moodle.umontpellier.fr` | Moodle base URL |
+| `MOODLE_UM_MCP_TRANSPORT` | `stdio` | `stdio` or `http` |
+| `MOODLE_UM_MCP_HOST` / `PORT` | `127.0.0.1` / `8765` | HTTP bind address |
+| `MOODLE_UM_MCP_PATH` | `/mcp` | Streamable HTTP path; use a random secret for remote mode |
 
 ## Quiz attempts
 
