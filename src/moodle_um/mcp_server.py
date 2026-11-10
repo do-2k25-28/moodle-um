@@ -88,6 +88,18 @@ async def moodle_login() -> dict:
     password, MFA). It then closes automatically and the session is saved. Only
     needed once, or when the session has fully expired.
     """
+    if os.environ.get("MOODLE_UM_MULTIUSER") == "1":
+        base = os.environ.get("MOODLE_UM_PUBLIC_URL", "").rstrip("/")
+        return {
+            "authenticated": False,
+            "error": (
+                "This is a multi-user server. Open "
+                f"{base}/connect on your machine, sign in to Moodle, upload the "
+                "session file, then put the returned token in Claude's connector "
+                "Request headers."
+            ),
+        }
+
     # Reuse a valid (or silently renewable) session before opening a window.
     if auth.storage_exists():
         try:
@@ -394,7 +406,9 @@ def main() -> None:
     for noisy in ("httpx", "httpcore", "mcp", "playwright", "anyio"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     if MCP_TRANSPORT in ("http", "streamable-http", "streamable_http"):
-        mcp.run(transport="streamable-http")
+        from .remote import run_http
+
+        run_http()
     else:
         mcp.run()
 

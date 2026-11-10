@@ -16,9 +16,9 @@ import shutil
 from pathlib import Path
 
 from .config import (
-    PROFILE_DIR,
-    STATE_FILE,
     USER_AGENT,
+    Home,
+    current_home,
     ensure_app_dir,
     get_site_url,
     load_config,
@@ -64,9 +64,9 @@ def find_browser() -> str | None:
     return None
 
 
-def _launch_kwargs(headless: bool) -> dict:
+def _launch_kwargs(headless: bool, home: Home) -> dict:
     kwargs: dict = {
-        "user_data_dir": str(PROFILE_DIR),
+        "user_data_dir": str(home.browser_profile),
         "headless": headless,
         "args": [
             "--no-sandbox",
@@ -106,34 +106,37 @@ async def _wait_for_login(page, timeout: float) -> bool:
     return False
 
 
-def storage_exists() -> bool:
-    return STATE_FILE.exists()
+def storage_exists(home: Home | None = None) -> bool:
+    return (home or current_home()).state_file.exists()
 
 
-def load_storage_state() -> dict | None:
-    if not STATE_FILE.exists():
+def load_storage_state(home: Home | None = None) -> dict | None:
+    target = (home or current_home()).state_file
+    if not target.exists():
         return None
     try:
-        return json.loads(STATE_FILE.read_text())
+        return json.loads(target.read_text())
     except (json.JSONDecodeError, OSError):
         return None
 
 
-def save_storage_state(state: dict) -> None:
-    ensure_app_dir()
-    STATE_FILE.write_text(json.dumps(state, indent=2))
+def save_storage_state(state: dict, home: Home | None = None) -> None:
+    target = home or current_home()
+    ensure_app_dir(target)
+    target.state_file.write_text(json.dumps(state, indent=2))
     try:
-        STATE_FILE.chmod(0o600)
+        target.state_file.chmod(0o600)
     except OSError:
         pass
 
 
-def session_cookies() -> list[dict]:
+def session_cookies(home: Home | None = None) -> list[dict]:
     """Return cookies usable against the Moodle site."""
-    state = load_storage_state()
+    target = home or current_home()
+    state = load_storage_state(target)
     if not state:
         return []
-    site = get_site_url().split("//", 1)[-1].split("/", 1)[0]
+    site = get_site_url(target).split("//", 1)[-1].split("/", 1)[0]
     cookies = []
     for cookie in state.get("cookies", []):
         domain = (cookie.get("domain") or "").lstrip(".")
@@ -142,20 +145,24 @@ def session_cookies() -> list[dict]:
     return cookies
 
 
-def public_session_info() -> dict:
-    cfg = load_config()
+def public_session_info(home: Home | None = None) -> dict:
+    target = home or current_home()
+    cfg = load_config(target)
     return {
-        "authenticated": bool(cfg.get("user_id")) and storage_exists(),
+        "authenticated": bool(cfg.get("user_id")) and storage_exists(target),
         "user_id": cfg.get("user_id"),
         "user_name": cfg.get("user_name"),
-        "site_url": get_site_url(),
-        "state_file": str(STATE_FILE),
+        "site_url": get_site_url(target),
+        "state_file": str(target.state_file),
     }
 
 
-async def interactive_login(timeout: int = LOGIN_TIMEOUT) -> dict:
+async def interactive_login(
+    timeout: int = LOGIN_TIMEOUT, home: Home | None = None
+) -> dict:
     """Open a visible browser and wait for the user to complete ENT login."""
-    ensure_app_dir()
+    target = home or current_home()
+    ensure_app_dir(target)
     if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
         raise AuthError(
             "No graphical session detected (DISPLAY is unset). Run "
@@ -166,11 +173,13 @@ async def interactive_login(timeout: int = LOGIN_TIMEOUT) -> dict:
     from playwright.async_api import async_playwright
 
     async with async_playwright() as p:
-        context = await p.chromium.launch_persistent_context(**_launch_kwargs(False))
+        context = await p.chromium.launch_persistent_context(
+            **_launch_kwargs(False, target)
+        )
         try:
             page = context.pages[0] if context.pages else await context.new_page()
             await page.goto(
-                f"{get_site_url()}/login/index.php?authCAS=CAS",
+                f"{get_site_url(target)}/login/index.php?authCAS=CAS",
                 wait_until="domcontentloaded",
                 timeout=60000,
             )
@@ -201,33 +210,34 @@ async def interactive_login(timeout: int = LOGIN_TIMEOUT) -> dict:
                 ua = USER_AGENT
 
             state = await context.storage_state()
-            save_storage_state(state)
-            cfg = load_config()
+            save_storage_state(state, target)
+            cfg = load_config(target)
             cfg.update(
                 {
-                    "site_url": get_site_url(),
+                    "site_url": get_site_url(target),
                     "user_id": user_id,
                     "user_name": user_name,
                     "user_agent": ua,
                 }
             )
-            save_config(cfg)
+            save_config(cfg, target)
             return {
                 "user_id": user_id,
                 "user_name": user_name,
-                "site_url": get_site_url(),
+                "site_url": get_site_url(target),
             }
         finally:
             await context.close()
 
 
-async def silent_refresh(timeout: float = 25) -> bool:
+async def silent_refresh(timeout: float = 25, home: Home | None = None) -> bool:
     """Try to renew the Moodle session using the still-valid CAS cookie."""
-    if not storage_exists():
+    target = home or current_home()
+    if not storage_exists(target):
         return False
     from playwright.async_api import async_playwright
 
-    ensure_app_dir()
+    ensure_app_dir(target)
     async with async_playwright() as p:
         browser = None
         try:
@@ -237,13 +247,13 @@ async def silent_refresh(timeout: float = 25) -> bool:
                 args=["--no-sandbox", "--disable-dev-shm-usage"],
             )
             context = await browser.new_context(
-                storage_state=str(STATE_FILE),
-                user_agent=load_config().get("user_agent") or USER_AGENT,
+                storage_state=str(target.state_file),
+                user_agent=load_config(target).get("user_agent") or USER_AGENT,
                 viewport={"width": 1280, "height": 900},
             )
             page = await context.new_page()
             await page.goto(
-                f"{get_site_url()}/login/index.php?authCAS=CAS",
+                f"{get_site_url(target)}/login/index.php?authCAS=CAS",
                 wait_until="domcontentloaded",
                 timeout=45000,
             )
@@ -251,10 +261,10 @@ async def silent_refresh(timeout: float = 25) -> bool:
             if not ok:
                 return False
             state = await context.storage_state()
-            save_storage_state(state)
-            cfg = load_config()
+            save_storage_state(state, target)
+            cfg = load_config(target)
             cfg["user_id"] = await _user_id(page)
-            save_config(cfg)
+            save_config(cfg, target)
             return True
         except Exception:
             return False
@@ -266,9 +276,9 @@ async def silent_refresh(timeout: float = 25) -> bool:
                     pass
 
 
-async def ensure_session() -> None:
+async def ensure_session(home: Home | None = None) -> None:
     """Raise AuthError if there is no usable saved session."""
-    if not storage_exists():
+    if not storage_exists(home):
         raise AuthError(
             "Not logged in. Run `moodle-um login` (or the `moodle_login` MCP "
             "tool) once to open the ENT login page."

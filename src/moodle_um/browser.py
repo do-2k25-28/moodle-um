@@ -15,7 +15,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from . import auth
-from .config import APP_DIR, USER_AGENT, get_site_url, load_config
+from .config import USER_AGENT, current_home, get_site_url, load_config
 from .parsers import html_to_text
 
 
@@ -83,17 +83,18 @@ async def run_actions(
     max_text: int = 15000,
 ) -> dict:
     actions = actions or []
-    url = urljoin(get_site_url() + "/", url)
+    home = current_home()
+    url = urljoin(get_site_url(home) + "/", url)
     if not _allowed(url):
         raise BrowserError(f"Refusing to browse non-university URL: {url}")
 
     from playwright.async_api import async_playwright
 
     exe = auth.find_browser()
-    if not auth.storage_exists():
+    if not auth.storage_exists(home):
         raise auth.AuthError("Not logged in. Run `moodle-um login` first.")
 
-    cfg = load_config()
+    cfg = load_config(home)
     ua = cfg.get("user_agent") or USER_AGENT
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -102,7 +103,7 @@ async def run_actions(
             args=["--no-sandbox", "--disable-dev-shm-usage"],
         )
         context = await browser.new_context(
-            storage_state=str(auth.STATE_FILE),
+            storage_state=str(home.state_file),
             user_agent=ua,
             viewport={"width": 1400, "height": 1000},
             locale="fr-FR",
@@ -119,10 +120,10 @@ async def run_actions(
             await goto(url)
             if "cas.umontpellier.fr" in page.url:
                 # Try a silent renewal once.
-                if await auth.silent_refresh():
+                if await auth.silent_refresh(home=home):
                     await context.close()
                     context = await browser.new_context(
-                        storage_state=str(auth.STATE_FILE),
+                        storage_state=str(home.state_file),
                         user_agent=ua,
                         viewport={"width": 1400, "height": 1000},
                         locale="fr-FR",
@@ -212,7 +213,7 @@ async def run_actions(
                 "actions_applied": applied,
             }
             if screenshot:
-                out_dir = APP_DIR / "screenshots"
+                out_dir = home.path / "screenshots"
                 out_dir.mkdir(parents=True, exist_ok=True)
                 shot = out_dir / f"page-{int(time.time())}.png"
                 await page.screenshot(path=str(shot), full_page=False)

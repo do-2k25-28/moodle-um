@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — 2026-11-10
+
+- **Multi-user remote MCP:** per-user session directories and personal bearer
+  tokens, selected by `Authorization: Bearer <token>` or `X-Moodle-Token`.
+- `/connect` onboarding page: upload a `storage_state.json`, validate it
+  against Moodle, get a token.
+- `keepalive --all` refreshes every uploaded user session.
+- Per-user homes via `Home` and request-scoped context; the single-user CLI and
+  stdio MCP are unchanged.
+- Remote onboarding deliberately does not use OAuth: Claude's OAuth cannot read
+  a user's Moodle domain-scoped cookies.
+
 ## 0.4.0 — 2026-11-10
 
 - **Remote MCP mode:** Streamable HTTP transport (`moodle-um mcp --http`),

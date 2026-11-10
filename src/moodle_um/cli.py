@@ -455,18 +455,21 @@ def download(
 @app.command()
 def keepalive(
     once: bool = typer.Option(False, "--once", help="Ping once and exit"),
+    all_users: bool = typer.Option(
+        False, "--all", help="Ping every uploaded multi-user session"
+    ),
     interval: int = typer.Option(
         600, "--interval", "-i", help="Seconds between pings in loop mode"
     ),
 ) -> None:
     """Ping Moodle periodically to keep the session from expiring."""
-    from .keepalive import ping_once, run_forever
+    from .keepalive import ping_all, ping_once, run_forever
 
     if once:
-        _print_json(_run(ping_once()))
+        _print_json(_run(ping_all() if all_users else ping_once()))
         return
     try:
-        asyncio.run(run_forever(interval))
+        asyncio.run(run_forever(interval, all_users=all_users))
     except KeyboardInterrupt:
         raise typer.Exit(130)
 

@@ -11,6 +11,7 @@ Environment=MOODLE_UM_HOME=%h/.config/moodle-um
 Environment=MOODLE_UM_MCP_HOST=127.0.0.1
 Environment=MOODLE_UM_MCP_PORT=8765
 Environment=MOODLE_UM_MCP_TRANSPORT=http
+Environment=MOODLE_UM_MULTIUSER=1
 EnvironmentFile=%h/.config/moodle-um/mcp.env
 ExecStart=%h/moodle-um/.venv/bin/moodle-um mcp --http --host 127.0.0.1 --port 8765 --path ${MOODLE_UM_MCP_PATH}
 Restart=always

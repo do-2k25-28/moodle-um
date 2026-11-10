@@ -23,17 +23,29 @@ Moodle until the session expires.
 - The optional keepalive timer only sends authenticated requests to
   `moodle.umontpellier.fr`; it does not transmit data anywhere else.
 
-## Remote MCP mode
+## Remote MCP mode (multi-user)
 
-`moodle-um mcp --http ...` exposes the MCP server over Streamable HTTP. When
-published through Tailscale Funnel or another HTTPS reverse proxy, **the URL
-path is the only access control**. Treat the full URL as a bearer credential:
+`moodle-um mcp --http ...` exposes one MCP server with **one Moodle session per
+person**. Users onboard through `https://<host>/<secret>/connect`:
 
-- use a random 32-byte path and HTTPS;
-- do not paste the URL into screenshots, issues, or logs;
-- rotate the path (edit `MOODLE_UM_MCP_PATH`, restart the service) if it leaks;
-- the server binds to `127.0.0.1`; do not expose the raw port directly;
-- no OAuth is implemented yet, so there is no per-user authorization.
+1. they sign in on their own machine with `moodle-um login`;
+2. they upload their `storage_state.json`;
+3. the server validates it against Moodle and gives them a personal bearer
+   token.
+
+Tokens are stored only as SHA-256 hashes; session directories are under
+`~/.config/moodle-um/users/<hash>/` with mode `0600`. The MCP endpoint requires
+`Authorization: Bearer <token>` (or `X-Moodle-Token`) and routes the request to
+that user's session.
+
+- Treat every token as a password for that user's Moodle account.
+- The onboarding URL's random path is also a secret; share it only with people
+  who should be able to link an account.
+- If a token leaks, the user uploads a fresh session to get a new token; old
+  tokens can be revoked by deleting the corresponding user directory.
+- No ENT password or MFA secret is stored; only Moodle session cookies.
+- HTTPS is required (`tailscale funnel` or a reverse proxy with a real
+  certificate).
 
 ## Reporting a vulnerability
 

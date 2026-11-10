@@ -170,43 +170,70 @@ run it through `uv`:
 }
 ```
 
-### Claude.ai / cloud clients (remote HTTP)
+### Claude.ai / cloud clients (multi-user HTTP)
 
 claude.ai connectors need a **public HTTPS MCP URL**; they cannot spawn a local
-stdio process. Run the same server in Streamable HTTP mode on a machine that can
-reach Moodle, then expose it through a tunnel or reverse proxy:
+stdio process. The server can host **one Moodle session per person**, with a
+personal bearer token per user.
+
+Run it in Streamable HTTP mode:
 
 ```bash
-# 32-byte URL-safe secret; do not commit or share it
-TOKEN=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
-uv run moodle-um mcp --http --host 127.0.0.1 --port 8765 --path "/$TOKEN/mcp"
+# 32-byte onboarding secret; do not commit or share it
+SECRET=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+export MOODLE_UM_MULTIUSER=1
+export MOODLE_UM_MCP_PATH="/$SECRET/mcp"
+export MOODLE_UM_PUBLIC_URL="https://<machine>.<tailnet>.ts.net/$SECRET"
+uv run moodle-um mcp --http --host 127.0.0.1 --port 8765 --path "$MOODLE_UM_MCP_PATH"
 ```
 
 With Tailscale:
 
 ```bash
 tailscale funnel --bg 8765
-# public URL:
-# https://<machine>.<tailnet>.ts.net/$TOKEN/mcp
 ```
 
-Then in Claude: **Settings → Connectors → Add custom connector**, name it
-`Moodle UM`, paste the URL, and continue. The server returns no OAuth challenge,
-so Claude connects without a sign-in prompt.
+Each user:
+
+1. signs in once on their own machine:
+   ```bash
+   uv run moodle-um login
+   ```
+2. opens the onboarding page and uploads
+   `~/.config/moodle-um/storage_state.json`:
+   ```text
+   https://<machine>.<tailnet>.ts.net/<secret>/connect
+   ```
+3. receives a personal token, then in Claude adds the connector with:
+   - **Authentication:** No sign-in
+   - **Request headers:** `Authorization: Bearer <token>`
+   - **MCP server URL:** `https://<machine>.<tailnet>.ts.net/<secret>/mcp`
+
+The server validates the uploaded session against Moodle, stores it under
+`~/.config/moodle-um/users/<hash>/` (mode `0600`), and routes every MCP request
+to the user selected by the token. Run the keepalive for everyone with:
+
+```bash
+uv run moodle-um keepalive --all
+```
 
 A systemd user service is provided in
 [`systemd/moodle-um-mcp-http.service`](systemd/moodle-um-mcp-http.service); put
-the secret path in `~/.config/moodle-um/mcp.env`:
+deployment values in `~/.config/moodle-um/mcp.env`:
 
 ```ini
-MOODLE_UM_MCP_PATH=/<token>/mcp
+MOODLE_UM_MCP_PATH=/<secret>/mcp
+MOODLE_UM_PUBLIC_URL=https://<machine>.<tailnet>.ts.net/<secret>
 ```
 
-**Security:** a no-auth connector URL is effectively a bearer credential.
-Anyone who learns it can use your Moodle session through the MCP. Keep it
-secret, use HTTPS, and rotate it by changing the path and restarting the
-service. OAuth is the stronger long-term option but is not implemented yet; see
-[SECURITY.md](SECURITY.md).
+**Why not Claude OAuth?** Claude's "Sign in" authenticates the connector, but
+Moodle's session cookie is scoped to `moodle.umontpellier.fr`; an OAuth login
+does not give the server that cookie. The upload/token flow is the bridge that
+actually links each user's Moodle account. No ENT password is stored.
+
+**Security:** a token is a bearer credential for one Moodle session. Use HTTPS,
+do not paste it into issues or screenshots, and rotate it by uploading a new
+session (which creates a new token) if it leaks.
 
 ### Claude Desktop
 

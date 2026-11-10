@@ -11,7 +11,15 @@ from urllib.parse import unquote, urljoin, urlparse
 import httpx
 
 from . import auth
-from .config import DOWNLOADS_DIR, USER_AGENT, get_site_url, load_config, save_config
+from .config import (
+    DOWNLOADS_DIR,
+    USER_AGENT,
+    Home,
+    current_home,
+    get_site_url,
+    load_config,
+    save_config,
+)
 
 
 class MoodleError(RuntimeError):
@@ -78,8 +86,9 @@ class MoodleClient:
     Instantiate with :meth:`connect` which validates/refreshes the session.
     """
 
-    def __init__(self) -> None:
-        self.site = get_site_url()
+    def __init__(self, home: Home | None = None) -> None:
+        self.home = home or current_home()
+        self.site = get_site_url(self.home)
         self.sesskey: str = ""
         self.user_id: int = 0
         self.user_name: str = ""
@@ -87,9 +96,9 @@ class MoodleClient:
         self._bootstrapped = False
 
     def _new_http(self) -> httpx.AsyncClient:
-        cfg = load_config()
+        cfg = load_config(self.home)
         ua = cfg.get("user_agent") or USER_AGENT
-        jar = cookies_to_httpx(auth.session_cookies())
+        jar = cookies_to_httpx(auth.session_cookies(self.home))
         return httpx.AsyncClient(
             cookies=jar,
             follow_redirects=True,
@@ -117,7 +126,7 @@ class MoodleClient:
 
     # --------------------------------------------------------------- session
     async def bootstrap(self) -> None:
-        if not auth.storage_exists():
+        if not auth.storage_exists(self.home):
             raise auth.AuthError(
                 "Not logged in. Run `moodle-um login` (or the `moodle_login` MCP "
                 "tool) once to open the ENT login page."
@@ -125,7 +134,7 @@ class MoodleClient:
         html, _final_url = await self._get_text("/my/")
         cfg = extract_moodle_cfg(html)
         if int(cfg.get("userId") or 0) <= 1:
-            if await auth.silent_refresh():
+            if await auth.silent_refresh(home=self.home):
                 await self._reload_session()
                 html, _final_url = await self._get_text("/my/")
                 cfg = extract_moodle_cfg(html)
@@ -143,11 +152,11 @@ class MoodleClient:
             self.user_name = self._parse_user_name(html)
         self._bootstrapped = True
         if self.user_name:
-            cfg = load_config()
+            cfg = load_config(self.home)
             if cfg.get("user_name") != self.user_name or cfg.get("user_id") != self.user_id:
                 cfg["user_name"] = self.user_name
                 cfg["user_id"] = self.user_id
-                save_config(cfg)
+                save_config(cfg, self.home)
         self._persist_cookies()
 
     async def _reload_session(self) -> None:
@@ -170,7 +179,7 @@ class MoodleClient:
 
     def _persist_cookies(self) -> None:
         """Copy cookies set during HTTP calls back to the saved state."""
-        state = auth.load_storage_state()
+        state = auth.load_storage_state(self.home)
         if not state:
             return
         existing = {
@@ -194,7 +203,7 @@ class MoodleClient:
                 state.setdefault("cookies", []).append(entry)
                 existing[key] = entry
             entry["value"] = cookie.value
-        auth.save_storage_state(state)
+        auth.save_storage_state(state, self.home)
 
     async def ensure(self) -> None:
         if not self._bootstrapped:
@@ -225,7 +234,7 @@ class MoodleClient:
         await self.ensure()
         html, final_url = await self._get_text(path_or_url)
         if self._is_login_redirect(final_url, html):
-            if await auth.silent_refresh():
+            if await auth.silent_refresh(home=self.home):
                 await self._reload_session()
                 await self.bootstrap()
                 html, final_url = await self._get_text(path_or_url)
@@ -360,7 +369,7 @@ class MoodleClient:
         return url
 
 
-async def connect() -> MoodleClient:
-    client = MoodleClient()
+async def connect(home: Home | None = None) -> MoodleClient:
+    client = MoodleClient(home=home)
     await client.bootstrap()
     return client

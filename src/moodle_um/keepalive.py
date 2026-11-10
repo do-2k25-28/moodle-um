@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 
 from .client import connect
-from .config import APP_DIR, ensure_app_dir
+from .config import APP_DIR, DEFAULT_HOME, Home, ensure_app_dir, user_home
 
 logger = logging.getLogger("moodle_um.keepalive")
 
@@ -32,10 +32,10 @@ def _log(message: str) -> None:
         pass
 
 
-async def ping_once() -> dict:
+async def ping_once(home: Home | None = None) -> dict:
     """Perform one authenticated request so Moodle refreshes the session."""
     try:
-        client = await connect()
+        client = await connect(home=home)
         try:
             result = {
                 "ok": True,
@@ -52,12 +52,37 @@ async def ping_once() -> dict:
         raise
 
 
-async def run_forever(interval: int = 600) -> None:
+def session_homes() -> list[Home]:
+    """Default local session plus every uploaded multi-user session."""
+    homes = [DEFAULT_HOME] if DEFAULT_HOME.state_file.exists() else []
+    base = APP_DIR / "users"
+    if base.exists():
+        for child in sorted(base.iterdir()):
+            home = user_home(child.name)
+            if home.state_file.exists():
+                homes.append(home)
+    return homes
+
+
+async def ping_all() -> list[dict]:
+    results = []
+    for home in session_homes():
+        try:
+            results.append(await ping_once(home))
+        except Exception:
+            results.append({"ok": False, "home": str(home.path)})
+    return results
+
+
+async def run_forever(interval: int = 600, all_users: bool = False) -> None:
     """Ping forever; intended for a foreground service or a terminal."""
-    _log(f"keepalive started (interval={interval}s)")
+    _log(f"keepalive started (interval={interval}s, all_users={all_users})")
     while True:
         try:
-            await ping_once()
+            if all_users:
+                await ping_all()
+            else:
+                await ping_once()
         except Exception:
             # ping_once already logged the failure; keep the loop alive.
             pass
