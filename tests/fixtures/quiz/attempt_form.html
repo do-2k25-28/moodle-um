@@ -1,0 +1,51 @@
+<form id="responseform" method="post"
+      action="http://moodle.test/mod/quiz/processattempt.php?cmid=1">
+  <input type="hidden" name="sesskey" value="test-sesskey"/>
+  <input type="hidden" name="attempt" value="42"/>
+  <input type="hidden" name="thispage" value="0"/>
+  <input type="hidden" name="nextpage" value="1"/>
+  <input type="hidden" name="timeup" value="0"/>
+  <input type="hidden" name="mdlscrollto" value=""/>
+
+  <div class="que multichoice deferredfeedback notyetanswered" id="question-42-1">
+    <div class="info"><h3 class="no">Question <span class="qno">1</span></h3></div>
+    <div class="content"><div class="formulation">
+      <div class="qtext"><p>What is 2 + 2?</p></div>
+      <div class="answer">
+        <div class="r0">
+          <input id="q42:1_answer0" name="q42:1_answer" type="radio" value="0"/>
+          <label for="q42:1_answer0">a. 3</label>
+        </div>
+        <div class="r1">
+          <input id="q42:1_answer1" name="q42:1_answer" type="radio" value="1"/>
+          <label for="q42:1_answer1">b. 4</label>
+        </div>
+        <div class="r0">
+          <input id="q42:1_answer2" name="q42:1_answer" type="radio" value="2"/>
+          <label for="q42:1_answer2">c. 5</label>
+        </div>
+      </div>
+      <input type="hidden" name="q42:1_:sequencecheck" value="1"/>
+    </div></div>
+  </div>
+
+  <div class="que shortanswer deferredfeedback notyetanswered" id="question-42-2">
+    <div class="info"><h3 class="no">Question <span class="qno">2</span></h3></div>
+    <div class="content"><div class="formulation">
+      <div class="qtext"><p>Capital of France?</p></div>
+      <input type="text" name="q42:2_answer" value=""/>
+    </div></div>
+  </div>
+
+  <div class="que multichoice deferredfeedback notyetanswered" id="question-42-3">
+    <div class="info"><h3 class="no">Question <span class="qno">3</span></h3></div>
+    <div class="content"><div class="formulation">
+      <div class="qtext"><p>Select the even numbers.</p></div>
+      <div class="answer">
+        <div class="r0"><input id="q42:3_choice0" name="q42:3_choice0" type="checkbox" value="1"/><label for="q42:3_choice0">A. 2</label></div>
+        <div class="r1"><input id="q42:3_choice1" name="q42:3_choice1" type="checkbox" value="1"/><label for="q42:3_choice1">B. 3</label></div>
+        <div class="r0"><input id="q42:3_choice2" name="q42:3_choice2" type="checkbox" value="1"/><label for="q42:3_choice2">C. 4</label></div>
+      </div>
+    </div></div>
+  </div>
+</form>

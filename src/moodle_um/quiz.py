@@ -281,3 +281,220 @@ async def get_attempt(
         result.pop("text", None)
         return result
     return parse_attempt_page(html, final, attemptid)
+
+
+def _attempt_form(soup: BeautifulSoup):
+    form = soup.select_one("form#responseform")
+    if form is not None:
+        return form
+    for candidate in soup.select("form"):
+        if candidate.select_one("input[name='attempt']"):
+            return candidate
+    return None
+
+
+def _attempt_fields(form) -> dict[str, str]:
+    """Current values of a quiz response form, suitable for re-posting."""
+    fields: dict[str, str] = {}
+    for control in form.select("input[name]"):
+        name = control.get("name")
+        if not name:
+            continue
+        kind = (control.get("type") or "text").lower()
+        if kind in ("submit", "button", "reset", "file"):
+            continue
+        if kind in ("radio", "checkbox"):
+            if control.has_attr("checked"):
+                fields[name] = control.get("value") or "1"
+            continue
+        fields[name] = control.get("value") or ""
+    for area in form.select("textarea[name]"):
+        fields[area["name"]] = area.get_text()
+    for select in form.select("select[name]"):
+        chosen = select.select_one("option[selected]")
+        if chosen is not None:
+            fields[select["name"]] = chosen.get("value") or ""
+    return fields
+
+
+def _strip_option_prefix(label: str) -> str:
+    return re.sub(r"^\s*[a-z][.)]\s*", "", label, flags=re.IGNORECASE).strip()
+
+
+def _match_choice(choices: list[dict], value: Any) -> dict | None:
+    needle = str(value).strip().lower()
+    for choice in choices:
+        if str(choice.get("value", "")).strip().lower() == needle:
+            return choice
+    for choice in choices:
+        label = _strip_option_prefix(str(choice.get("label", ""))).lower()
+        if label == needle or (needle and needle in label):
+            return choice
+    for choice in choices:
+        label = str(choice.get("label", ""))
+        prefix = re.match(r"^\s*([a-z])[.)]", label, re.IGNORECASE)
+        if prefix and prefix.group(1).lower() == needle:
+            return choice
+    return None
+
+
+def resolve_answers(parsed: dict, answers: dict[str, Any]) -> dict[str, str]:
+    """Map ``{"1": "b"}`` style answers to raw Moodle input names.
+
+    Keys may also be raw input names (``q42:1_answer``). Values may be a choice
+    label, a choice value, a text answer, or a list of labels for
+    multiple-response questions.
+    """
+    by_slot = {str(q.get("slot")): q for q in parsed.get("questions", [])}
+    raw_names = {
+        name
+        for q in parsed.get("questions", [])
+        for name in q.get("raw_answer_names", [])
+    }
+    resolved: dict[str, str] = {}
+
+    for key, value in answers.items():
+        key = str(key)
+        if key in raw_names:
+            resolved[key] = "" if value is None or value is False else str(value)
+            continue
+
+        question = by_slot.get(key)
+        if question is None:
+            raise MoodleError(f"Unknown question or input: {key}")
+
+        choices = question.get("choices") or []
+        if choices:
+            names = {choice["name"] for choice in choices}
+            if len(names) == 1:
+                # Radio / true-false: one value under one input name.
+                choice = _match_choice(choices, value)
+                if choice is None:
+                    raise MoodleError(
+                        f"No choice matching {value!r} for question {key}"
+                    )
+                resolved[choice["name"]] = choice["value"]
+            else:
+                # Multiple response: each selected name is 1, the rest omitted.
+                wanted = value if isinstance(value, (list, tuple, set)) else [value]
+                matched = []
+                for item in wanted:
+                    choice = _match_choice(choices, item)
+                    if choice is None:
+                        raise MoodleError(
+                            f"No choice matching {item!r} for question {key}"
+                        )
+                    matched.append(choice)
+                for choice in choices:
+                    resolved[choice["name"]] = (
+                        "1" if choice in matched else ""
+                    )
+            continue
+
+        text_inputs = question.get("text_inputs") or []
+        if text_inputs:
+            resolved[text_inputs[0]["name"]] = str(value)
+            continue
+
+        selects = question.get("selects") or []
+        if selects:
+            select = selects[0]
+            needle = str(value).strip().lower()
+            option = next(
+                (
+                    opt
+                    for opt in select.get("options", [])
+                    if str(opt.get("value", "")).lower() == needle
+                    or str(opt.get("label", "")).strip().lower() == needle
+                ),
+                None,
+            )
+            if option is None:
+                raise MoodleError(
+                    f"No option matching {value!r} for question {key}"
+                )
+            resolved[select["name"]] = option["value"]
+            continue
+
+        raise MoodleError(f"Question {key} has no answer field")
+
+    return resolved
+
+
+async def save_answers(
+    client: MoodleClient,
+    attemptid: int,
+    answers: dict[str, str],
+    page: int | None = None,
+    finish: bool = False,
+) -> dict[str, Any]:
+    """Save answers for the current page (or finish/submit the attempt)."""
+    url = f"/mod/quiz/attempt.php?attempt={attemptid}"
+    if page is not None:
+        url += f"&page={page}"
+    html, final = await client.get_text(url)
+    if "/mod/quiz/review.php" in final:
+        result = parse_attempt_page(html, final, attemptid)
+        result.update({"finished": True, "review_url": final})
+        result.pop("text", None)
+        return result
+
+    soup = soup_of(html)
+    form = _attempt_form(soup)
+    if form is None:
+        raise MoodleError(
+            "No response form found. The attempt may be closed or already submitted."
+        )
+
+    fields = _attempt_fields(form)
+    for name, value in answers.items():
+        if value is None or value is False or str(value) == "":
+            fields.pop(name, None)
+        else:
+            fields[name] = str(value)
+
+    if finish:
+        fields["finishattempt"] = "1"
+        fields["timeup"] = "0"
+        fields.pop("next", None)
+    else:
+        fields["next"] = "1"
+        fields["timeup"] = "0"
+        thispage = int(fields.get("thispage", page or 0) or 0)
+        nextpage = fields.get("nextpage") or ""
+        if not nextpage or nextpage == "-1":
+            # Last page: save in place instead of accidentally finishing.
+            nextpage = str(thispage)
+        fields["nextpage"] = nextpage
+
+    action = urljoin(final, form.get("action") or final)
+    response_html, response_url = await client.post_form(action, fields)
+    if "/mod/quiz/review.php" in response_url or "/mod/quiz/summary.php" in response_url:
+        result = parse_attempt_page(response_html, response_url, attemptid)
+        result.update({"finished": True, "review_url": response_url})
+        result.pop("text", None)
+        return result
+    return parse_attempt_page(response_html, response_url, attemptid)
+
+
+async def solve_attempt(
+    client: MoodleClient,
+    attemptid: int,
+    answers: dict[str, Any],
+    page: int | None = None,
+) -> dict[str, Any]:
+    """Resolve user-friendly answers against the attempt page and save them."""
+    url = f"/mod/quiz/attempt.php?attempt={attemptid}"
+    if page is not None:
+        url += f"&page={page}"
+    html, final = await client.get_text(url)
+    parsed = parse_attempt_page(html, final, attemptid)
+    resolved = resolve_answers(parsed, answers)
+    return await save_answers(client, attemptid, resolved, page=page, finish=False)
+
+
+async def submit_attempt(
+    client: MoodleClient, attemptid: int, page: int | None = None
+) -> dict[str, Any]:
+    """Finish and submit the attempt."""
+    return await save_answers(client, attemptid, {}, page=page, finish=True)

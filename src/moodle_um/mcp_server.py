@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from mcp.server.fastmcp import FastMCP
 
 from . import auth, browser, quiz, services
@@ -20,8 +22,10 @@ mcp = FastMCP(
         "confirmation before `moodle_submit_assignment` with confirm=true: it is "
         "irreversible and may be graded. Use `moodle_quiz_start` and "
         "`moodle_quiz_attempt` to read the real questions and choices, then "
-        "present them to the user and let the user decide. Never invent answers "
-        "for a graded exam."
+        "present them to the user and let the user decide. Use "
+        "`moodle_quiz_solve` to save proposed answers, and "
+        "`moodle_quiz_submit` only after explicit user confirmation. Never "
+        "submit a graded exam without the user's approval."
     ),
 )
 
@@ -168,6 +172,49 @@ async def moodle_quiz_attempt(attemptid: int, page: int = 0) -> dict:
         page: zero-based page number (default 0).
     """
     return await _with_client(lambda c: quiz.get_attempt(c, attemptid, page))
+
+
+@mcp.tool()
+async def moodle_quiz_solve(
+    attemptid: int, answers: dict[str, Any], page: int | None = None
+) -> dict:
+    """Save answers for one quiz page, using question numbers or choice labels.
+
+    `answers` maps a question number (for example `"1"`) to a choice label/value
+    (`"b"`, `"4"`, `"True"`) or a list for multiple-response questions, and/or
+    a raw Moodle input name to its value. It saves the page; it does not submit
+    the attempt. Show the questions and proposed answers to the user first.
+
+    Args:
+        attemptid: quiz attempt id.
+        answers: question-number/label map, or raw input-name map.
+        page: optional zero-based page number.
+    """
+    return await _with_client(
+        lambda c: quiz.solve_attempt(c, attemptid, answers, page)
+    )
+
+
+@mcp.tool()
+async def moodle_quiz_submit(
+    attemptid: int, page: int | None = None, confirm: bool = False
+) -> dict:
+    """Finish and submit a quiz attempt. IRREVERSIBLE.
+
+    Only call with confirm=true after showing the user the answers and getting
+    an explicit "yes".
+
+    Args:
+        attemptid: quiz attempt id.
+        page: optional zero-based page number.
+        confirm: must be true.
+    """
+    if not confirm:
+        return {
+            "ok": False,
+            "error": "confirm=false: ask the user for explicit confirmation first.",
+        }
+    return await _with_client(lambda c: quiz.submit_attempt(c, attemptid, page))
 
 
 @mcp.tool()

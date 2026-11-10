@@ -1,6 +1,6 @@
 [project]
 name = "moodle-um"
-version = "0.2.0"
+version = "0.3.0"
 description = "CLI + MCP server for Moodle Université de Montpellier (ENT/CAS): courses, assignments, submissions, quizzes, files"
 readme = "README.md"
 license = { text = "MIT" }

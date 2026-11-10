@@ -56,7 +56,7 @@ Optional: `uv tool install .` puts `moodle-um` and `moodle-um-mcp` on your
 | **Files** | Download `pluginfile.php` resources, assignment attachments, course documents |
 | **Grades** | Read the per-course grade report |
 | **Calendar** | Upcoming deadlines and action events |
-| **Quizzes** | List quizzes, read settings/attempts/grades, **start or resume an attempt and get structured questions + choices**; finished attempts are parsed from the review page |
+| **Quizzes** | List quizzes, read settings/attempts/grades, **start/resume an attempt, read questions + choices, save answers and submit with confirmation**; finished attempts are parsed from the review page |
 | **Any page** | Fetch any Moodle page as Markdown, or drive it with a headless browser (`click`, `fill`, `select`, `check`, `set_file`, `goto`) |
 | **Interfaces** | Typer CLI + stdio MCP server (Claude Desktop, Claude Code, Cursor, DeepSeek Harness, any MCP client) |
 | **Session** | One interactive ENT login, saved cookies, optional keepalive timer |
@@ -66,8 +66,8 @@ Optional: `uv tool install .` puts `moodle-um` and `moodle-um-mcp` on your
 | Limitation | Detail |
 | --- | --- |
 | **No SEB / proctoring bypass** | Safe Exam Browser, lockdown browsers and proctoring are not bypassed. If an exam requires SEB, use SEB. |
-| **No answer saving/submission yet** | The quiz reader returns questions and choices; saving answers and final submission are the next milestone — see [ROADMAP.md](ROADMAP.md). |
-| **No autonomous exam solving** | There is no "solve this graded exam" tool. The model presents questions and proposed answers; the user decides. |
+| **No built-in LLM solver** | The MCP exposes the questions and a save/submit API; the calling AI proposes the answers. You review them before submission. |
+| **No SEB / proctoring bypass** | Safe Exam Browser, lockdown browsers and proctoring are not bypassed. If an exam requires SEB, use SEB. |
 | **No teacher/admin actions** | The tool acts as the logged-in student. |
 | **Not every activity type** | BigBlueButton, H5P, attendance, etc. are reachable through the generic page/browser tools, not first-class tools. |
 | **MFA is interactive** | No password is stored, so the first login needs a browser and MFA. |
@@ -87,6 +87,8 @@ uv run moodle-um quizzes <course-id>
 uv run moodle-um quiz <cmid>
 uv run moodle-um quiz-start <cmid>          # start/resume, get questions + choices
 uv run moodle-um quiz-attempt <attempt-id>  # read a page of an attempt
+uv run moodle-um quiz-solve <attempt-id> --answers '{"1":"b","2":"Paris"}'
+uv run moodle-um quiz-submit <attempt-id> --yes
 ```
 
 Read any page as Markdown:
@@ -218,6 +220,8 @@ Tools appear as `mcp__um__moodle_*` (the server name is `um`). Remove with
 | `moodle_get_quiz` | Quiz settings, attempts, `start_url` |
 | `moodle_quiz_start` | Start/resume an attempt; return questions, choices, input names |
 | `moodle_quiz_attempt` | Read one page of an in-progress or finished attempt |
+| `moodle_quiz_solve` | Save answers from question numbers/labels (does not submit) |
+| `moodle_quiz_submit` | Final submit, `confirm=true` required |
 | `moodle_get_grades` | Grade report for a course |
 | `moodle_upcoming` | Upcoming deadlines/calendar |
 | `moodle_get_page` | Any Moodle page as Markdown |
@@ -230,7 +234,7 @@ Typical agent flow:
 2. `moodle_get_course` / `moodle_list_assignments` → see what is due.
 3. `moodle_get_assignment` → read instructions and attachments.
 4. Ask the user to confirm, then `moodle_submit_assignment(confirm=true, …)`.
-5. For a quiz: `moodle_get_quiz`, then `moodle_quiz_start` / `moodle_quiz_attempt` to read the questions and choices.
+5. For a quiz: `moodle_quiz_start` → solve/read questions → `moodle_quiz_solve` → user confirms → `moodle_quiz_submit`.
 
 The server instructions tell the model to never submit without explicit user
 confirmation and never invent answers for an exam.
@@ -302,7 +306,7 @@ flowchart LR
 
 ## Quiz attempts
 
-v0.2 adds a first-class **reader** for quiz attempts:
+v0.3 adds the full **read → solve → submit** loop:
 
 - `moodle_quiz_start(cmid)` starts or resumes an attempt (it does not submit)
   and returns the attempt id, page, timer, question text, choices, select
@@ -312,7 +316,13 @@ v0.2 adds a first-class **reader** for quiz attempts:
 - `moodle_quiz_attempt(attemptid, page=0)` reads an in-progress page; if the
   attempt is finished, it parses the review page and returns the questions with
   their correct-answer markers.
-- The same data is available from the CLI with `quiz-start` / `quiz-attempt`.
+- `moodle_quiz_solve(attemptid, answers, page=None)` maps answers such as
+  `{"1": "b", "2": "Paris", "3": ["A", "C"]}` to the real Moodle inputs and
+  saves the page. It does not submit.
+- `moodle_quiz_submit(attemptid, confirm=true)` finishes the attempt. It is
+  irreversible and requires explicit confirmation.
+- The same actions are available from the CLI with `quiz-start`,
+  `quiz-attempt`, `quiz-solve` and `quiz-submit`.
 
 Example shape:
 
@@ -335,15 +345,24 @@ Example shape:
 }
 ```
 
-The reader is tested offline against Moodle-shaped fixtures, a mocked
-start-attempt flow, and a real finished attempt review page. The Docker lab in
-[docs/quiz-test-lab.md](docs/quiz-test-lab.md) is the place to test answer
-saving and final submission next.
+### Solving workflow
 
-Saving answers and final submission are the next milestone: see
-[ROADMAP.md](ROADMAP.md). Automatic solving of graded exams is intentionally
-not implemented; the model should present questions and proposed answers to the
-user, who decides.
+1. `moodle_quiz_start(cmid)` (or `moodle_quiz_attempt` for an in-progress
+   attempt) returns the questions and choices.
+2. The AI proposes answers. Show the questions and answers to the user.
+3. `moodle_quiz_solve(attemptid, {"1": "b", "2": "Paris"})` saves the page.
+   Repeat for each page.
+4. After the user confirms, `moodle_quiz_submit(attemptid, confirm=true)`.
+5. Review the result page.
+
+The save/submit flow is tested offline against Moodle-shaped forms with a
+mocked `processattempt.php`, and the parser is validated against a real finished
+UM attempt. A Docker-based local Moodle lab for full end-to-end attempts is in
+[docs/quiz-test-lab.md](docs/quiz-test-lab.md).
+
+The model does the reasoning; the MCP does not embed an LLM or auto-submit a
+graded exam. Do not use this on SEB/proctored exams or without the user's
+explicit approval.
 
 ## Responsible use
 

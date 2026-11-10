@@ -1,18 +1,22 @@
 # Quiz support: test lab
 
-## Current coverage (v0.2)
+## Current coverage (v0.3)
 
 Implemented and tested:
 
 - start/resume an attempt (`moodle_quiz_start`);
 - read an in-progress page (`moodle_quiz_attempt`);
 - parse a finished attempt review page into questions + choices;
+- save answers by question number, choice label/value or raw input name
+  (`moodle_quiz_solve`);
+- final submit with confirmation (`moodle_quiz_submit`);
 - offline fixtures for multichoice, true/false, short answer, matching, essay
   and gap-select;
-- mocked HTTP start-attempt flow (`tests/test_quiz.py`).
+- mocked start/save/submit HTTP flows (`tests/test_quiz.py`).
 
-Not yet tested end-to-end: saving answers and final submission. Those are the
-next milestone and require the local Moodle lab below.
+Still to test end-to-end against a real Moodle: a complete attempt in the local
+lab below (start → save → next page → submit → review), especially matching and
+multiple-response questions.
 
 The quiz-attempt feature must be testable **without touching a real graded
 exam**. This document describes the test layers, from cheapest to most

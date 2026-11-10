@@ -8,34 +8,26 @@
 - Grades, calendar, generic page reading, generic browser actions.
 - CLI and MCP server (stdio), DSH bundle.
 
-## Done (v0.2): quiz attempt reader
+## Done (v0.3): quiz read → solve → submit
 
-- `moodle_quiz_start(cmid)` starts/resumes an attempt and returns questions,
-  choices, select options, text fields and input names.
-- `moodle_quiz_attempt(attemptid, page=0)` reads an in-progress page; finished
-  attempts are parsed from the review page with correct-answer markers.
-- Tested with offline fixtures, a mocked start-attempt flow, and a real review
+- `moodle_quiz_start` starts/resumes an attempt and returns questions, choices,
+  select options, text fields and input names.
+- `moodle_quiz_attempt` reads an in-progress page; finished attempts are parsed
+  from the review page with correct-answer markers.
+- `moodle_quiz_solve` maps question-number/label answers to Moodle inputs and
+  saves the page.
+- `moodle_quiz_submit` finishes the attempt, with `confirm=true`.
+- Tested with offline fixtures, a mocked save/submit flow, and a real review
   page.
 
-## Next: answer saving and final submission
+## Next: full end-to-end lab and more question types
 
-### Tool surface
-
-| Tool | Purpose |
-| --- | --- |
-| `moodle_quiz_save_attempt(attemptid, answers, page=0)` | Save answers / move to next page |
-| `moodle_quiz_submit(attemptid, confirm=true)` | Final submit, with summary |
-| `moodle_quiz_review(attemptid)` | Read the reviewed attempt after grading |
-
-### Implementation notes
-
-- Save by POSTing the attempt form to `/mod/quiz/processattempt.php` with the
-  hidden `attempt`, `thispage`, `sesskey`, `nextpage` fields and answer inputs.
-- Preserve page-access rules and the timer; never skip `check_page_access`.
-- Support multiple-choice, true/false, short answer, numerical, matching,
-  essay and gap-select first.
-- Detect password-protected and SEB quizzes; stop with a clear message.
-- Final submit requires `confirm=true` and a user-facing summary.
+- Run the local Moodle Docker lab (see `tests/fixtures/moodle/`) and exercise a
+  complete attempt: start → save → next page → submit → review.
+- Add explicit support for matching (multiple selects per question), drag-and-
+  drop, ordering and cloze, or document the browser fallback clearly.
+- Add an answer-sheet/summary step before `moodle_quiz_submit`.
+- Detect password-protected and SEB-only quizzes before starting.
 
 ## Test lab for quiz support
 

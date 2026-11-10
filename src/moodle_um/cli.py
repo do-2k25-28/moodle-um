@@ -244,6 +244,48 @@ def quiz_attempt(
     _print_json(_run(_quiz_attempt()))
 
 
+@app.command("quiz-solve")
+def quiz_solve(
+    attemptid: int = typer.Argument(..., help="quiz attempt id"),
+    answers: str = typer.Option(
+        ..., "--answers", help='JSON map, e.g. \'{"1":"b","2":"Paris"}\''
+    ),
+    page: int = typer.Option(None, "--page", "-p", help="zero-based page number"),
+) -> None:
+    """Save answers for one quiz page (does not submit)."""
+    parsed = json.loads(answers)
+
+    async def _solve():
+        client = await connect()
+        try:
+            return await quiz_service.solve_attempt(client, attemptid, parsed, page)
+        finally:
+            await client.close()
+
+    _print_json(_run(_solve()))
+
+
+@app.command("quiz-submit")
+def quiz_submit(
+    attemptid: int = typer.Argument(..., help="quiz attempt id"),
+    page: int = typer.Option(None, "--page", "-p", help="zero-based page number"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm final submission"),
+) -> None:
+    """Submit a quiz attempt (irreversible)."""
+    if not yes:
+        typer.secho("Refusing without --yes.", fg=typer.colors.YELLOW, err=True)
+        raise typer.Exit(1)
+
+    async def _submit():
+        client = await connect()
+        try:
+            return await quiz_service.submit_attempt(client, attemptid, page)
+        finally:
+            await client.close()
+
+    _print_json(_run(_submit()))
+
+
 @app.command()
 def grades(courseid: int = typer.Argument(...)) -> None:
     """Show your grade report for a course."""

@@ -1,10 +1,18 @@
 import asyncio
 from pathlib import Path
+from urllib.parse import parse_qs
 
 import httpx
 
 from moodle_um.client import MoodleClient
-from moodle_um.quiz import parse_attempt_page, start_quiz
+from moodle_um.quiz import (
+    parse_attempt_page,
+    resolve_answers,
+    save_answers,
+    solve_attempt,
+    start_quiz,
+    submit_attempt,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures" / "quiz"
 
@@ -86,3 +94,115 @@ def test_start_quiz_posts_form_and_parses_attempt():
     assert result["attemptid"] == 42
     assert result["question_count"] == 1
     assert result["questions"][0]["type"] == "multichoice"
+
+
+def _mock_client(handler) -> MoodleClient:
+    client = MoodleClient()
+    client.site = "http://moodle.test"
+    client.sesskey = "test-sesskey"
+    client._bootstrapped = True
+    client.http = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), follow_redirects=True
+    )
+    return client
+
+
+def test_resolve_answers_by_label_value_and_letter():
+    parsed = parse_attempt_page(fixture("attempt_form.html"))
+    raw = resolve_answers(
+        parsed,
+        {"1": "b", "2": "Paris", "3": ["A", "C"]},
+    )
+    assert raw["q42:1_answer"] == "1"
+    assert raw["q42:2_answer"] == "Paris"
+    assert raw["q42:3_choice0"] == "1"
+    assert raw["q42:3_choice1"] == ""
+    assert raw["q42:3_choice2"] == "1"
+
+
+def test_save_answers_posts_selected_values():
+    posts: list[dict[str, list[str]]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            posts.append(parse_qs(request.content.decode()))
+            return httpx.Response(
+                303,
+                headers={"Location": "/mod/quiz/attempt.php?attempt=42&page=1"},
+            )
+        return httpx.Response(200, text=fixture("attempt_form.html"))
+
+    async def run():
+        client = _mock_client(handler)
+        try:
+            return await save_answers(
+                client, 42, {"q42:1_answer": "1", "q42:2_answer": "Paris"}
+            )
+        finally:
+            await client.http.aclose()
+
+    result = asyncio.run(run())
+    assert result["attemptid"] == 42
+    assert posts, "expected a POST to processattempt.php"
+    post = posts[0]
+    assert post["q42:1_answer"] == ["1"]
+    assert post["q42:2_answer"] == ["Paris"]
+    assert post["next"] == ["1"]
+    assert "finishattempt" not in post
+
+
+def test_submit_sends_finishattempt_and_parses_review():
+    posts: list[dict[str, list[str]]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            posts.append(parse_qs(request.content.decode()))
+            return httpx.Response(
+                303,
+                headers={"Location": "/mod/quiz/review.php?attempt=42&cmid=1"},
+            )
+        if request.url.path == "/mod/quiz/review.php":
+            return httpx.Response(200, text=fixture("multichoice.html"))
+        return httpx.Response(200, text=fixture("attempt_form.html"))
+
+    async def run():
+        client = _mock_client(handler)
+        try:
+            return await submit_attempt(client, 42)
+        finally:
+            await client.http.aclose()
+
+    result = asyncio.run(run())
+    assert result["finished"] is True
+    assert posts[0]["finishattempt"] == ["1"]
+
+
+def test_solve_attempt_maps_user_answers():
+    posts: list[dict[str, list[str]]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            posts.append(parse_qs(request.content.decode()))
+            return httpx.Response(
+                303,
+                headers={"Location": "/mod/quiz/attempt.php?attempt=42&page=1"},
+            )
+        return httpx.Response(200, text=fixture("attempt_form.html"))
+
+    async def run():
+        client = _mock_client(handler)
+        try:
+            return await solve_attempt(
+                client, 42, {"1": "b", "2": "Paris", "3": ["A", "C"]}
+            )
+        finally:
+            await client.http.aclose()
+
+    result = asyncio.run(run())
+    assert result["attemptid"] == 42
+    post = posts[0]
+    assert post["q42:1_answer"] == ["1"]
+    assert post["q42:2_answer"] == ["Paris"]
+    assert post["q42:3_choice0"] == ["1"]
+    assert "q42:3_choice1" not in post
+    assert post["q42:3_choice2"] == ["1"]

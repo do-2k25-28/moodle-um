@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-11-10
+
+- **Quiz solve/submit:** `moodle_quiz_solve` maps answers by question number,
+  choice label/value or raw input name, saves a page; `moodle_quiz_submit`
+  finishes with explicit confirmation.
+- CLI `quiz-solve` / `quiz-submit`.
+- Save/submit tested against Moodle-shaped forms and a mocked
+  `processattempt.php`; 17 offline tests.
+- README documents the read → solve → submit workflow and limits.
+
 ## 0.2.0 — 2026-11-10
 
 - **Quiz attempt reader:** start/resume an attempt and return structured
