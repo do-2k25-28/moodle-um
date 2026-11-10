@@ -323,7 +323,9 @@ v0.2 adds a first-class **reader** for quiz attempts:
 
 - `moodle_quiz_start(cmid)` starts or resumes an attempt (it does not submit)
   and returns the attempt id, page, timer, question text, choices, select
-  options, text fields and the exact input names.
+  options, text fields and the exact input names. Starting can consume one of
+  your allowed attempts, so only use it when you explicitly want to take the
+  quiz.
 - `moodle_quiz_attempt(attemptid, page=0)` reads an in-progress page; if the
   attempt is finished, it parses the review page and returns the questions with
   their correct-answer markers.

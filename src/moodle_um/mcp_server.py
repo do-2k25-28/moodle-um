@@ -141,10 +141,12 @@ async def moodle_list_quizzes(courseid: int) -> dict:
 async def moodle_quiz_start(cmid: int) -> dict:
     """Start or resume a quiz attempt and return its questions and choices.
 
-    Creates a real attempt on Moodle (it does not submit it). The result
-    contains the attempt id, page, timer, question text, choices and the exact
-    input names to answer with. If Moodle requires a password, an honour
-    statement or Safe Exam Browser, the result says so instead of starting.
+    Creates a real attempt on Moodle (it does not submit it). Starting a quiz
+    can consume one of your allowed attempts, so only call this when the user
+    explicitly asks to start or take the quiz. The result contains the attempt
+    id, page, timer, question text, choices and the exact input names to answer
+    with. If Moodle requires a password, an honour statement or Safe Exam
+    Browser, the result says so instead of starting.
 
     Args:
         cmid: course-module id of the quiz.
