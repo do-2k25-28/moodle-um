@@ -16,11 +16,18 @@ dedicated tool.
 
 ## First run — sign in once
 
-**The only manual step is the first ENT login.** Do it once before using the
-CLI or connecting an MCP client:
+Requirements: Python ≥ 3.12, [uv](https://docs.astral.sh/uv/), and Chromium or
+Google Chrome.
+
+**The only manual step is the first ENT login.** Clone, install, and sign in
+once:
 
 ```bash
+git clone https://github.com/do-2k25-28/moodle-um.git
+cd moodle-um
+uv sync
 uv run moodle-um login
+uv run moodle-um status
 ```
 
 A Chromium window opens on the ENT/CAS page. Sign in with your identifiant and
@@ -35,6 +42,9 @@ command and MCP tool.
 - **Expired session:** run `moodle-um login` again, or keep it alive with the
   [keepalive timer](#keep-the-session-alive).
 - You do **not** sign in per command, per course, or per tool call.
+
+Optional: `uv tool install .` puts `moodle-um` and `moodle-um-mcp` on your
+`PATH`.
 
 ## What it can do
 
@@ -62,33 +72,6 @@ command and MCP tool.
 | **Not every activity type** | BigBlueButton, H5P, attendance, etc. are reachable through the generic page/browser tools, not first-class tools. |
 | **MFA is interactive** | No password is stored, so the first login needs a browser and MFA. |
 | **Session lifetime** | Moodle expires idle sessions after ~2 h. The keepalive timer prevents this while the machine is awake; a long suspend can still require a new login. |
-
-## Quick start
-
-Requirements: Python ≥ 3.12, [uv](https://docs.astral.sh/uv/), and Chromium or
-Google Chrome.
-
-```bash
-git clone https://github.com/do-2k25-28/moodle-um.git
-cd moodle-um
-uv sync
-uv run moodle-um login   # once — see "First run"
-uv run moodle-um status
-```
-
-`login` opens a Chromium window on the ENT/CAS page. Sign in with your
-identifiant and MFA; the window closes automatically and the session is saved in
-`~/.config/moodle-um/` (mode `0600`). No password is stored.
-
-> The login window needs a graphical session (`DISPLAY` / Wayland). On a remote
-> machine, run it from the desktop session or use X11 forwarding.
-
-Optional — install the commands on your `PATH`:
-
-```bash
-uv tool install .
-# moodle-um ... / moodle-um-mcp
-```
 
 ## CLI
 
