@@ -16,6 +16,9 @@ Moodle until the session expires.
 
 - Do not commit `~/.config/moodle-um/`, `keepalive.log`, or browser profiles.
 - Do not paste session files or cookies into issues, screenshots, or chats.
+- `browser_profile/` is a Chromium profile (cookies, cache, history) and is
+  mode `0700`. `keepalive.log` only contains timestamps and the Moodle user id
+  and is mode `0600`.
 - Revoke access by logging out of Moodle/ENT and deleting the directory.
 - The optional keepalive timer only sends authenticated requests to
   `moodle.umontpellier.fr`; it does not transmit data anywhere else.

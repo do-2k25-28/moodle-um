@@ -23,9 +23,11 @@ def _log(message: str) -> None:
     stamp = datetime.now().astimezone().isoformat(timespec="seconds")
     line = f"{stamp} {message}"
     print(line, flush=True)
+    log_path = APP_DIR / "keepalive.log"
     try:
-        with (APP_DIR / "keepalive.log").open("a", encoding="utf-8") as fh:
+        with log_path.open("a", encoding="utf-8") as fh:
             fh.write(line + "\n")
+        log_path.chmod(0o600)
     except OSError:
         pass
 

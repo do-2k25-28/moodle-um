@@ -294,6 +294,53 @@ flowchart LR
 - The generic browser layer handles JS-heavy pages without pretending every
   Moodle activity has a stable API.
 
+## Process model — no server to host
+
+`moodle-um-mcp` is a **stdio MCP server**, not an HTTP service:
+
+```
+AI client (Claude / Cursor / DSH)
+        │  JSON-RPC over stdin/stdout
+        ▼
+  moodle-um-mcp  ──HTTPS──►  moodle.umontpellier.fr
+```
+
+- The AI client spawns `moodle-um-mcp` as a child process and talks to it over
+  stdin/stdout. There is **no port to expose, no daemon to deploy, and nothing
+  to host**.
+- The process lives only while the client keeps it open. In this DeepSeek
+  Harness it is a child of the Web process; the only listening socket is the
+  DSH Web UI itself on `127.0.0.1:3080`.
+- The optional keepalive is a systemd **user timer** running
+  `moodle-um keepalive --once` every 10 minutes. It is a one-shot local job, not
+  a network server.
+- Network egress is limited to the university Moodle (and CAS during login).
+
+## Where credentials live
+
+**No ENT password and no MFA secret are stored.** The only credential material
+is the browser session created by the one-time login:
+
+| Path | Contents | Mode |
+| --- | --- | --- |
+| `~/.config/moodle-um/storage_state.json` | Session cookies (`MoodleSession`, CAS `TGC`/`connect.sid`) — treat as a password | `0600` |
+| `~/.config/moodle-um/config.json` | Site URL, user id/name, user agent | `0600` |
+| `~/.config/moodle-um/browser_profile/` | Chromium profile used for login (cookies, cache, history) | `0700` |
+| `~/.config/moodle-um/keepalive.log` | Timestamps and user id of keepalive pings | `0600` |
+
+The repository contains none of these. The DSH bundle only passes the
+`MOODLE_UM_HOME` path — no secret.
+
+To revoke access:
+
+```bash
+systemctl --user disable --now moodle-um-keepalive.timer
+rm -rf ~/.config/moodle-um
+```
+
+Then log out of Moodle/ENT in your browser. Deleting the directory logs the
+tool out; it does not end a separately open browser session.
+
 ## Configuration
 
 | Variable | Default | Meaning |
