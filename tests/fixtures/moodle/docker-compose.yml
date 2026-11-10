@@ -1,0 +1,28 @@
+services:
+  db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: moodle
+      MARIADB_DATABASE: moodle
+      MARIADB_USER: moodle
+      MARIADB_PASSWORD: moodle
+    volumes:
+      - moodle-db:/var/lib/mysql
+
+  moodle:
+    image: moodlehq/moodle-php-apache:4.5
+    ports:
+      - "8080:80"
+    environment:
+      MOODLE_DATABASE_HOST: db
+      MOODLE_DATABASE_NAME: moodle
+      MOODLE_DATABASE_USER: moodle
+      MOODLE_DATABASE_PASSWORD: moodle
+    depends_on:
+      - db
+    volumes:
+      - moodle-data:/var/www/moodledata
+
+volumes:
+  moodle-db:
+  moodle-data:

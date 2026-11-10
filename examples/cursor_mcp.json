@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "moodle-um": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/moodle-um",
+        "run",
+        "moodle-um-mcp"
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Moodle UM session keepalive ping
+Documentation=https://github.com/do-2k25-28/moodle-um
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Adjust these paths if the repository is not cloned at ~/moodle-um.
+WorkingDirectory=%h/moodle-um
+ExecStart=%h/moodle-um/.venv/bin/moodle-um keepalive --once
+Environment=MOODLE_UM_HOME=%h/.config/moodle-um

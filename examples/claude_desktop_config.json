@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "moodle-um": {
+      "command": "/absolute/path/to/moodle-um/.venv/bin/moodle-um-mcp"
+    }
+  }
+}

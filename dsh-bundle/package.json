@@ -1,0 +1,13 @@
+{
+  "name": "@local/dsh-moodle-um",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Moodle UM MCP server for the University of Montpellier",
+  "files": ["cordis.patch.yml", "icon.svg"],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

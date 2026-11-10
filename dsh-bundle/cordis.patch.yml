@@ -1,0 +1,18 @@
+# DeepSeek Harness bundle
+#
+# Replace /path/to/moodle-um with the absolute path of your clone before
+# installing this bundle.
+
+- insert:
+    - id: mcp-moodle-um
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: um
+        transport: stdio
+        command: /path/to/moodle-um/.venv/bin/moodle-um-mcp
+        cwd: /path/to/moodle-um
+        env:
+          MOODLE_UM_HOME: /home/you/.config/moodle-um
+        toolCallTimeoutMs: 300000
+        maxInstructionBytes: 32768
+        failOnStartupError: true

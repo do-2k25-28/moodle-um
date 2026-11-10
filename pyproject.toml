@@ -1,0 +1,49 @@
+[project]
+name = "moodle-um"
+version = "0.1.0"
+description = "CLI + MCP server for Moodle Université de Montpellier (ENT/CAS): courses, assignments, submissions, quizzes, files"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Ghadi Saab" }]
+keywords = ["moodle", "mcp", "model-context-protocol", "cli", "university", "ent", "cas", "automation"]
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.2",
+    "markdownify>=0.13",
+    "playwright>=1.48",
+    "mcp>=1.2,<2",
+    "typer>=0.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/do-2k25-28/moodle-um"
+Repository = "https://github.com/do-2k25-28/moodle-um"
+Issues = "https://github.com/do-2k25-28/moodle-um/issues"
+
+[project.scripts]
+moodle-um = "moodle_um.cli:app"
+moodle-um-mcp = "moodle_um.mcp_server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/moodle_um"]
+
+[tool.uv]
+package = true
+
+[tool.ruff.lint]
+ignore = ["B008", "BLE001", "S110", "S112"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
