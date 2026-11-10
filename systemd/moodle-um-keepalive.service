@@ -8,5 +8,5 @@ Wants=network-online.target
 Type=oneshot
 # Adjust these paths if the repository is not cloned at ~/moodle-um.
 WorkingDirectory=%h/moodle-um
-ExecStart=%h/moodle-um/.venv/bin/moodle-um keepalive --all
+ExecStart=%h/moodle-um/.venv/bin/moodle-um keepalive --all --once
 Environment=MOODLE_UM_HOME=%h/.config/moodle-um
