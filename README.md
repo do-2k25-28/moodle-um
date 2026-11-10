@@ -331,6 +331,27 @@ v0.2 adds a first-class **reader** for quiz attempts:
   their correct-answer markers.
 - The same data is available from the CLI with `quiz-start` / `quiz-attempt`.
 
+Example shape:
+
+```json
+{
+  "attemptid": 42,
+  "page": 0,
+  "timeleft": "00:14:32",
+  "questions": [
+    {
+      "number": 1,
+      "type": "multichoice",
+      "text": "What is 2 + 2?",
+      "choices": [
+        {"name": "q42:1_answer", "value": "0", "label": "a. 3", "selected": false},
+        {"name": "q42:1_answer", "value": "1", "label": "b. 4", "selected": true}
+      ]
+    }
+  ]
+}
+```
+
 The reader is tested offline against Moodle-shaped fixtures, a mocked
 start-attempt flow, and a real finished attempt review page. The Docker lab in
 [docs/quiz-test-lab.md](docs/quiz-test-lab.md) is the place to test answer
