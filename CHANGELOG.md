@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 — 2026-11-10
+
+- Fix the systemd keepalive unit: `--all` must be paired with `--once` so the
+  oneshot service exits after pinging every user session.
+
 ## 0.5.0 — 2026-11-10
 
 - **Multi-user remote MCP:** per-user session directories and personal bearer
