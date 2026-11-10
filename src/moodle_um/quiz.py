@@ -276,5 +276,8 @@ async def get_attempt(
                 "review_url": final,
             }
         )
+        # The review page text duplicates the structured questions; drop it
+        # to keep MCP responses small.
+        result.pop("text", None)
         return result
     return parse_attempt_page(html, final, attemptid)
