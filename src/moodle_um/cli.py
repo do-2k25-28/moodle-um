@@ -9,6 +9,7 @@ from pathlib import Path
 import typer
 
 from . import auth, browser, services
+from . import quiz as quiz_service
 from .client import MoodleError, connect
 from .config import APP_DIR
 
@@ -210,6 +211,37 @@ def quiz(cmid: int = typer.Argument(...)) -> None:
             await client.close()
 
     _print_json(_run(_quiz()))
+
+
+@app.command("quiz-start")
+def quiz_start(cmid: int = typer.Argument(..., help="course-module id")) -> None:
+    """Start/resume a quiz attempt and print its questions and choices."""
+
+    async def _quiz_start():
+        client = await connect()
+        try:
+            return await quiz_service.start_quiz(client, cmid)
+        finally:
+            await client.close()
+
+    _print_json(_run(_quiz_start()))
+
+
+@app.command("quiz-attempt")
+def quiz_attempt(
+    attemptid: int = typer.Argument(..., help="quiz attempt id"),
+    page: int = typer.Option(0, "--page", "-p", help="zero-based page number"),
+) -> None:
+    """Read one page of an in-progress quiz attempt."""
+
+    async def _quiz_attempt():
+        client = await connect()
+        try:
+            return await quiz_service.get_attempt(client, attemptid, page)
+        finally:
+            await client.close()
+
+    _print_json(_run(_quiz_attempt()))
 
 
 @app.command()

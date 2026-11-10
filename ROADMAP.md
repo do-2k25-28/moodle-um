@@ -8,42 +8,34 @@
 - Grades, calendar, generic page reading, generic browser actions.
 - CLI and MCP server (stdio), DSH bundle.
 
-## Next: first-class quiz attempts
+## Done (v0.2): quiz attempt reader
 
-The goal is to let the MCP **read an actual quiz attempt, expose the questions
-and answer fields to the model, and save/submit answers**. The model proposes
-answers; the user confirms before final submission. It is not an autonomous
-exam solver, and it will not bypass SEB/proctoring.
+- `moodle_quiz_start(cmid)` starts/resumes an attempt and returns questions,
+  choices, select options, text fields and input names.
+- `moodle_quiz_attempt(attemptid, page=0)` reads an in-progress page; finished
+  attempts are parsed from the review page with correct-answer markers.
+- Tested with offline fixtures, a mocked start-attempt flow, and a real review
+  page.
+
+## Next: answer saving and final submission
 
 ### Tool surface
 
 | Tool | Purpose |
 | --- | --- |
-| `moodle_quiz_start(cmid)` | Start (or resume) an attempt, return attempt id + page |
-| `moodle_quiz_get_attempt(attemptid, page=0)` | Questions, choices, input names, timer, navigation |
 | `moodle_quiz_save_attempt(attemptid, answers, page=0)` | Save answers / move to next page |
 | `moodle_quiz_submit(attemptid, confirm=true)` | Final submit, with summary |
 | `moodle_quiz_review(attemptid)` | Read the reviewed attempt after grading |
 
 ### Implementation notes
 
-- Start with a POST to `/mod/quiz/startattempt.php` (`cmid`, `sesskey`),
-  following the redirect to `/mod/quiz/attempt.php?attempt=…`.
-- Parse the response form: hidden `attempt`, `thispage`, `sesskey`; question
-  inputs named `q<slot>:<qa>_…`.
-- Map common question types to answer payloads: multichoice, true/false,
-  shortanswer, numerical, matching, essay, gapselect.
 - Save by POSTing the attempt form to `/mod/quiz/processattempt.php` with the
-  page navigation fields; final submit uses `finishattempt=1`.
-- Preserve the timer and page-access rules; never skip `check_page_access`.
-- Detect password-protected quizzes and SEB access rules and stop with a clear
-  message.
-
-### Open questions
-
-- Question HTML differs by theme and Moodle version; fixtures are required.
-- Some types (drag-and-drop, cloze) need special handling or a browser fallback.
-- Essay answers: save text, but expect manual grading.
+  hidden `attempt`, `thispage`, `sesskey`, `nextpage` fields and answer inputs.
+- Preserve page-access rules and the timer; never skip `check_page_access`.
+- Support multiple-choice, true/false, short answer, numerical, matching,
+  essay and gap-select first.
+- Detect password-protected and SEB quizzes; stop with a clear message.
+- Final submit requires `confirm=true` and a user-facing summary.
 
 ## Test lab for quiz support
 

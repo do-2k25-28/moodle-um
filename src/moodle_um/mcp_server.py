@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from . import auth, browser, services
+from . import auth, browser, quiz, services
 from .client import connect
 
 mcp = FastMCP(
@@ -16,8 +16,10 @@ mcp = FastMCP(
         "see sections and activities. Use `moodle_get_page` for any page without a "
         "dedicated tool (forums, resources, etc.). ALWAYS ask the user for explicit "
         "confirmation before `moodle_submit_assignment` with confirm=true: it is "
-        "irreversible and may be graded. Never invent answers for an exam; present "
-        "the questions and let the user decide."
+        "irreversible and may be graded. Use `moodle_quiz_start` and "
+        "`moodle_quiz_attempt` to read the real questions and choices, then "
+        "present them to the user and let the user decide. Never invent answers "
+        "for a graded exam."
     ),
 )
 
@@ -133,6 +135,35 @@ async def moodle_list_quizzes(courseid: int) -> dict:
     """
     quizzes = await _with_client(lambda c: services.list_quizzes(c, courseid))
     return {"count": len(quizzes), "quizzes": quizzes}
+
+
+@mcp.tool()
+async def moodle_quiz_start(cmid: int) -> dict:
+    """Start or resume a quiz attempt and return its questions and choices.
+
+    Creates a real attempt on Moodle (it does not submit it). The result
+    contains the attempt id, page, timer, question text, choices and the exact
+    input names to answer with. If Moodle requires a password, an honour
+    statement or Safe Exam Browser, the result says so instead of starting.
+
+    Args:
+        cmid: course-module id of the quiz.
+    """
+    return await _with_client(lambda c: quiz.start_quiz(c, cmid))
+
+
+@mcp.tool()
+async def moodle_quiz_attempt(attemptid: int, page: int = 0) -> dict:
+    """Read one page of an in-progress quiz attempt.
+
+    Returns the same question/choice structure as moodle_quiz_start, without
+    creating or submitting anything.
+
+    Args:
+        attemptid: attempt id from moodle_quiz_start or the attempt URL.
+        page: zero-based page number (default 0).
+    """
+    return await _with_client(lambda c: quiz.get_attempt(c, attemptid, page))
 
 
 @mcp.tool()
