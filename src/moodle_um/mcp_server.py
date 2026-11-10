@@ -11,9 +11,11 @@ mcp = FastMCP(
     "moodle-um",
     instructions=(
         "Tools for the University of Montpellier Moodle (moodle.umontpellier.fr). "
-        "The user signs in through ENT/CAS once with `moodle_login`; the session is "
-        "then reused. Start with `moodle_list_courses`, then `moodle_get_course` to "
-        "see sections and activities. Use `moodle_get_page` for any page without a "
+        "The user signs in through ENT/CAS once. Call `moodle_status` first; if it "
+        "reports authenticated=false, call `moodle_login` once before any other "
+        "tool. The session is then reused. After that, start with "
+        "`moodle_list_courses`, then `moodle_get_course` to see sections and "
+        "activities. Use `moodle_get_page` for any page without a "
         "dedicated tool (forums, resources, etc.). ALWAYS ask the user for explicit "
         "confirmation before `moodle_submit_assignment` with confirm=true: it is "
         "irreversible and may be graded. Use `moodle_quiz_start` and "
@@ -36,8 +38,8 @@ async def _with_client(fn):
 async def moodle_status() -> dict:
     """Check whether a saved Moodle session is valid, and who is logged in.
 
-    Returns user_id, user_name and site URL. Call this first if a tool reports
-    an authentication error.
+    Returns user_id, user_name and site URL. Call this first at the start of a
+    session; if authenticated is false, call moodle_login once.
     """
     try:
         client = await connect()
