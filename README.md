@@ -193,6 +193,9 @@ With Tailscale:
 tailscale funnel --bg 8765
 ```
 
+If Funnel is configured on a non-default HTTPS port (for example `:8443`),
+include that port in the connector URL and in `MOODLE_UM_PUBLIC_URL`.
+
 Each user:
 
 1. signs in once on their own machine:
